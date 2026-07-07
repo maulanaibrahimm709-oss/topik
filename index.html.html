@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TataHari — Planner & Keuangan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          cream: '#FAF8F3',
+          'cream-2': '#F2EEE4',
+          sky: '#DDEAF5',
+          'sky-mid': '#8FB4D1',
+          navy: '#274B6D',
+          'navy-dark': '#173350',
+          charcoal: '#26333E',
+          muted: '#69768A',
+          rust: '#C9927B',
+        },
+        fontFamily: {
+          serif: ['Fraunces', 'serif'],
+          sans: ['Inter', 'sans-serif'],
+        },
+      }
+    }
+  }
+</script>
+<style>
+  body { font-family: 'Inter', sans-serif; background-color: #FAF8F3; }
+  .font-serif { font-family: 'Fraunces', serif; }
+  ::selection { background: #DDEAF5; color: #173350; }
+  input, textarea { outline: none; }
+  input:focus, textarea:focus { box-shadow: 0 0 0 2px #8FB4D1; }
+  .tab-btn.active { background: #274B6D; color: #FAF8F3; }
+  .tab-btn { transition: all .2s ease; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  input[type="checkbox"].todo-check {
+    appearance: none; width: 18px; height: 18px; border: 1.5px solid #8FB4D1;
+    border-radius: 5px; cursor: pointer; position: relative; flex-shrink: 0;
+  }
+  input[type="checkbox"].todo-check:checked { background: #274B6D; border-color: #274B6D; }
+  input[type="checkbox"].todo-check:checked::after {
+    content: ''; position: absolute; left: 5px; top: 1px; width: 5px; height: 9px;
+    border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg);
+  }
+  .icon-btn { color: #69768A; transition: color .2s ease; }
+  .icon-btn:hover { color: #C9927B; }
+  .save-pill { opacity: 0; transition: opacity .3s ease; }
+  .save-pill.show { opacity: 1; }
+  input[type="date"], input[type="month"] { color: #26333E; }
+</style>
+</head>
+<body class="text-charcoal antialiased min-h-screen">
+
+<header class="border-b border-sky bg-cream/90 backdrop-blur sticky top-0 z-20">
+  <div class="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <svg width="26" height="26" viewBox="0 0 30 30" fill="none">
+        <circle cx="15" cy="15" r="7" fill="#274B6D"/>
+        <g stroke="#274B6D" stroke-width="1.8" stroke-linecap="round">
+          <line x1="15" y1="2" x2="15" y2="5.5"/>
+          <line x1="15" y1="24.5" x2="15" y2="28"/>
+          <line x1="2" y1="15" x2="5.5" y2="15"/>
+          <line x1="24.5" y1="15" x2="28" y2="15"/>
+          <line x1="5.6" y1="5.6" x2="8" y2="8"/>
+          <line x1="22" y1="22" x2="24.4" y2="24.4"/>
+          <line x1="5.6" y1="24.4" x2="8" y2="22"/>
+          <line x1="22" y1="8" x2="24.4" y2="5.6"/>
+        </g>
+      </svg>
+      <span class="font-serif text-lg font-semibold text-navy-dark">TataHari</span>
+    </div>
+    <div id="savePill" class="save-pill flex items-center gap-1.5 text-xs text-sky-mid font-medium">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5L5 9.5L11 3" stroke="#8FB4D1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Tersimpan
+    </div>
+  </div>
+  <nav class="max-w-5xl mx-auto px-5 pb-3 flex gap-2 overflow-x-auto">
+    <button data-tab="harian" class="tab-btn active whitespace-nowrap text-sm font-medium px-4 py-2 rounded-full bg-cream-2 text-charcoal/70">Rencana Harian</button>
+    <button data-tab="mingguan" class="tab-btn whitespace-nowrap text-sm font-medium px-4 py-2 rounded-full bg-cream-2 text-charcoal/70">Prioritas Mingguan</button>
+    <button data-tab="bulanan" class="tab-btn whitespace-nowrap text-sm font-medium px-4 py-2 rounded-full bg-cream-2 text-charcoal/70">Budget Bulanan</button>
+    <button data-tab="tahunan" class="tab-btn whitespace-nowrap text-sm font-medium px-4 py-2 rounded-full bg-cream-2 text-charcoal/70">Keuangan Tahunan</button>
+    <button data-tab="kalender" class="tab-btn whitespace-nowrap text-sm font-medium px-4 py-2 rounded-full bg-cream-2 text-charcoal/70">Kalender</button>
+  </nav>
+</header>
+
+<main class="max-w-5xl mx-auto px-5 py-8">
+
+  <!-- ============ HARIAN ============ -->
+  <section id="panel-harian" class="panel active space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-sky p-4">
+      <button id="dayPrev" class="icon-btn p-2"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4L6 9L11 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="text-center flex-1 min-w-[160px]">
+        <p id="dayLabel" class="font-serif text-lg text-navy-dark"></p>
+        <button id="dayToday" class="text-xs text-sky-mid font-medium hover:underline">Ke hari ini</button>
+      </div>
+      <input id="dayPicker" type="date" class="bg-cream-2 rounded-xl px-3 py-2 text-sm">
+      <button id="dayNext" class="icon-btn p-2"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M7 4L12 9L7 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-4">Top 3 Prioritas Hari Ini</h2>
+      <div id="dailyTop3" class="space-y-2"></div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-4">To-do List</h2>
+      <div class="flex gap-2 mb-4">
+        <input id="dailyTodoInput" type="text" placeholder="Tambah tugas baru…" class="flex-1 bg-cream-2 rounded-xl px-4 py-2.5 text-sm">
+        <button id="dailyTodoAdd" class="bg-navy text-cream text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-navy-dark">Tambah</button>
+      </div>
+      <div id="dailyTodoList" class="space-y-2"></div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-serif text-lg text-navy-dark">Jadwal Kegiatan</h2>
+        <span class="text-xs text-muted">Diurutkan otomatis per jam</span>
+      </div>
+      <div class="flex flex-wrap gap-2 mb-4">
+        <input id="schedTimeInput" type="time" value="08:00" class="bg-cream-2 rounded-xl px-3 py-2.5 text-sm w-32">
+        <input id="schedTextInput" type="text" placeholder="Nama kegiatan…" class="flex-1 min-w-[160px] bg-cream-2 rounded-xl px-4 py-2.5 text-sm">
+        <button id="schedAdd" class="bg-navy text-cream text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-navy-dark">Tambah</button>
+      </div>
+      <div id="dailySchedule" class="space-y-2"></div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-3">Catatan & Refleksi</h2>
+      <textarea id="dailyNotes" rows="4" placeholder="Bagaimana harimu? Apa yang bisa disyukuri atau diperbaiki?" class="w-full bg-cream-2 rounded-xl px-4 py-3 text-sm resize-none"></textarea>
+    </div>
+  </section>
+
+  <!-- ============ MINGGUAN ============ -->
+  <section id="panel-mingguan" class="panel space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-sky p-4">
+      <button id="weekPrev" class="icon-btn p-2"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4L6 9L11 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="text-center flex-1 min-w-[160px]">
+        <p id="weekLabel" class="font-serif text-lg text-navy-dark"></p>
+        <button id="weekToday" class="text-xs text-sky-mid font-medium hover:underline">Ke minggu ini</button>
+      </div>
+      <input id="weekPicker" type="date" class="bg-cream-2 rounded-xl px-3 py-2 text-sm">
+      <button id="weekNext" class="icon-btn p-2"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M7 4L12 9L7 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-4">Top 3 Prioritas Mingguan</h2>
+      <div id="weeklyTop3" class="space-y-2"></div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-3">Fokus Minggu Ini</h2>
+      <input id="weeklyFocus" type="text" placeholder="Satu kalimat fokus utama minggu ini…" class="w-full bg-cream-2 rounded-xl px-4 py-2.5 text-sm">
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-4">To-do List Mingguan</h2>
+      <div class="flex gap-2 mb-4">
+        <input id="weeklyTodoInput" type="text" placeholder="Tambah tugas minggu ini…" class="flex-1 bg-cream-2 rounded-xl px-4 py-2.5 text-sm">
+        <button id="weeklyTodoAdd" class="bg-navy text-cream text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-navy-dark">Tambah</button>
+      </div>
+      <div id="weeklyTodoList" class="space-y-2"></div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-3">Catatan</h2>
+      <textarea id="weeklyNotes" rows="4" placeholder="Catatan tambahan untuk minggu ini…" class="w-full bg-cream-2 rounded-xl px-4 py-3 text-sm resize-none"></textarea>
+    </div>
+  </section>
+
+  <!-- ============ BULANAN ============ -->
+  <section id="panel-bulanan" class="panel space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-sky p-4">
+      <button id="monthPrev" class="icon-btn p-2"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4L6 9L11 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <p id="monthLabel" class="font-serif text-lg text-navy-dark flex-1 text-center min-w-[140px]"></p>
+      <input id="monthPicker" type="month" class="bg-cream-2 rounded-xl px-3 py-2 text-sm">
+      <button id="monthNext" class="icon-btn p-2"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M7 4L12 9L7 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 class="font-serif text-lg text-navy-dark">Ringkasan Bulan Ini</h2>
+        <button id="downloadExcel" class="flex items-center gap-2 bg-navy text-cream text-sm font-semibold px-4 py-2 rounded-xl hover:bg-navy-dark">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 1V10M7.5 10L4 6.5M7.5 10L11 6.5" stroke="#FAF8F3" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12V13.5H13V12" stroke="#FAF8F3" stroke-width="1.4" stroke-linecap="round"/></svg>
+          Unduh Excel
+        </button>
+      </div>
+      <div class="grid sm:grid-cols-3 gap-4">
+        <div>
+          <label class="text-xs text-muted font-medium">Pemasukan (Rp)</label>
+          <input id="monthIncome" type="number" min="0" placeholder="0" class="w-full bg-cream-2 rounded-xl px-4 py-2.5 text-sm mt-1">
+        </div>
+        <div class="bg-cream-2 rounded-xl px-4 py-2.5">
+          <label class="text-xs text-muted font-medium">Total Pengeluaran</label>
+          <p id="monthExpenseTotal" class="font-serif text-lg text-navy-dark mt-1">Rp0</p>
+        </div>
+        <div class="bg-sky rounded-xl px-4 py-2.5">
+          <label class="text-xs text-navy-dark/70 font-medium">Sisa / Tabungan</label>
+          <p id="monthRemaining" class="font-serif text-lg text-navy-dark mt-1">Rp0</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-4">Alokasi Kategori</h2>
+      <div class="grid md:grid-cols-2 gap-6 items-start">
+        <div>
+          <div class="flex gap-2 mb-4">
+            <input id="catName" type="text" placeholder="Nama kategori" class="flex-1 bg-cream-2 rounded-xl px-3 py-2.5 text-sm">
+            <input id="catAmount" type="number" min="0" placeholder="Jumlah" class="w-28 bg-cream-2 rounded-xl px-3 py-2.5 text-sm">
+            <button id="catAdd" class="bg-navy text-cream text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-navy-dark">+</button>
+          </div>
+          <div id="catList" class="space-y-2"></div>
+        </div>
+        <div class="flex flex-col items-center justify-center py-4">
+          <canvas id="donutChart" width="200" height="200"></canvas>
+          <p id="donutEmpty" class="text-sm text-muted mt-3 text-center">Tambahkan kategori untuk melihat grafik alokasi</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-3">Catatan Pengeluaran</h2>
+      <textarea id="monthNotes" rows="3" placeholder="Catatan bebas soal pengeluaran bulan ini…" class="w-full bg-cream-2 rounded-xl px-4 py-3 text-sm resize-none"></textarea>
+    </div>
+  </section>
+
+  <!-- ============ TAHUNAN ============ -->
+  <section id="panel-tahunan" class="panel space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-sky p-4">
+      <button id="yearPrev" class="icon-btn p-2"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4L6 9L11 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <p id="yearLabel" class="font-serif text-lg text-navy-dark flex-1 text-center"></p>
+      <input id="yearPicker" type="number" min="2000" max="2100" class="bg-cream-2 rounded-xl px-3 py-2 text-sm w-24">
+      <button id="yearNext" class="icon-btn p-2"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M7 4L12 9L7 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-4">Ringkasan Tahunan</h2>
+      <p class="text-xs text-muted mb-4">Dihitung otomatis dari data Budget Bulanan yang sudah kamu isi tahun ini.</p>
+      <div class="grid sm:grid-cols-3 gap-4">
+        <div class="bg-cream-2 rounded-xl px-4 py-2.5">
+          <label class="text-xs text-muted font-medium">Total Pemasukan</label>
+          <p id="yearIncomeTotal" class="font-serif text-lg text-navy-dark mt-1">Rp0</p>
+        </div>
+        <div class="bg-cream-2 rounded-xl px-4 py-2.5">
+          <label class="text-xs text-muted font-medium">Total Pengeluaran</label>
+          <p id="yearExpenseTotal" class="font-serif text-lg text-navy-dark mt-1">Rp0</p>
+        </div>
+        <div class="bg-sky rounded-xl px-4 py-2.5">
+          <label class="text-xs text-navy-dark/70 font-medium">Total Tabungan</label>
+          <p id="yearSavingTotal" class="font-serif text-lg text-navy-dark mt-1">Rp0</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-4">Grafik Tren Keuangan</h2>
+      <canvas id="trendChart" width="600" height="220" class="w-full"></canvas>
+      <div class="flex gap-4 mt-3 text-xs text-muted">
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#8FB4D1"></span>Pemasukan</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#274B6D"></span>Pengeluaran</span>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-3">Evaluasi</h2>
+      <textarea id="yearEval" rows="3" placeholder="Apa yang berjalan baik dan tidak tahun ini?" class="w-full bg-cream-2 rounded-xl px-4 py-3 text-sm resize-none"></textarea>
+    </div>
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-3">Target Tahun Depan</h2>
+      <textarea id="yearTarget" rows="3" placeholder="Target keuangan & kebiasaan untuk tahun berikutnya…" class="w-full bg-cream-2 rounded-xl px-4 py-3 text-sm resize-none"></textarea>
+    </div>
+  </section>
+
+  <!-- ============ KALENDER ============ -->
+  <section id="panel-kalender" class="panel space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-sky p-4">
+      <button id="calPrev" class="icon-btn p-2"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4L6 9L11 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <p id="calLabel" class="font-serif text-lg text-navy-dark flex-1 text-center min-w-[140px]"></p>
+      <input id="calPicker" type="month" class="bg-cream-2 rounded-xl px-3 py-2 text-sm">
+      <button id="calNext" class="icon-btn p-2"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M7 4L12 9L7 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <div class="grid grid-cols-7 gap-1.5 mb-2 text-center text-xs font-semibold text-muted">
+        <span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span>Sab</span><span>Min</span>
+      </div>
+      <div id="calGrid" class="grid grid-cols-7 gap-1.5"></div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 id="calSelectedLabel" class="font-serif text-lg text-navy-dark mb-4">Pilih tanggal di kalender</h2>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <input id="calLabelInput" type="text" placeholder="Nama hari penting / mulai kegiatan…" class="flex-1 min-w-[180px] bg-cream-2 rounded-xl px-4 py-2.5 text-sm">
+        <button id="calAdd" class="bg-navy text-cream text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-navy-dark">Tambah</button>
+      </div>
+      <div class="flex items-center gap-2 mb-4">
+        <span class="text-xs text-muted mr-1">Warna:</span>
+        <button class="cal-color-swatch w-6 h-6 rounded-full ring-2 ring-navy-dark" data-color="#274B6D" style="background:#274B6D"></button>
+        <button class="cal-color-swatch w-6 h-6 rounded-full" data-color="#8FB4D1" style="background:#8FB4D1"></button>
+        <button class="cal-color-swatch w-6 h-6 rounded-full" data-color="#C9927B" style="background:#C9927B"></button>
+        <button class="cal-color-swatch w-6 h-6 rounded-full" data-color="#69768A" style="background:#69768A"></button>
+      </div>
+      <div id="calMarkList" class="space-y-2"></div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-sky p-6">
+      <h2 class="font-serif text-lg text-navy-dark mb-4">Semua Hari Penting Bulan Ini</h2>
+      <div id="calMonthList" class="space-y-2"></div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ===================== STORAGE HELPERS ===================== */
+async function loadKey(key, fallback) {
+  try {
+    const res = await window.storage.get(key, false);
+    return res ? JSON.parse(res.value) : fallback;
+  } catch (e) { return fallback; }
+}
+async function saveKey(key, value) {
+  try {
+    await window.storage.set(key, JSON.stringify(value), false);
+    flashSaved();
+  } catch (e) { console.error('Gagal menyimpan', e); }
+}
+let saveTimer = null;
+function flashSaved() {
+  const pill = document.getElementById('savePill');
+  pill.classList.add('show');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => pill.classList.remove('show'), 1200);
+}
+function debounce(fn, delay) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
+}
+function uid() { return Math.random().toString(36).slice(2, 9); }
+function rupiah(n) { return 'Rp' + (Number(n) || 0).toLocaleString('id-ID'); }
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+/* ===================== DATE HELPERS ===================== */
+function fmtDate(d) { return d.toISOString().slice(0, 10); }
+function parseDateInput(str) { return new Date(str + 'T00:00:00'); }
+function mondayOf(d) {
+  const nd = new Date(d);
+  const day = nd.getDay() || 7;
+  nd.setDate(nd.getDate() - day + 1);
+  nd.setHours(0,0,0,0);
+  return nd;
+}
+function isoWeekKey(mondayDate) {
+  const d = new Date(Date.UTC(mondayDate.getFullYear(), mondayDate.getMonth(), mondayDate.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2,'0')}`;
+}
+const HARI = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+const BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+/* ===================== TAB SWITCHING ===================== */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ===================== HARIAN ===================== */
+let currentDay = new Date();
+async function renderDaily() {
+  const key = 'daily:' + fmtDate(currentDay);
+  document.getElementById('dayLabel').textContent =
+    `${HARI[currentDay.getDay()]}, ${currentDay.getDate()} ${BULAN[currentDay.getMonth()]} ${currentDay.getFullYear()}`;
+  document.getElementById('dayPicker').value = fmtDate(currentDay);
+
+  const raw = await loadKey(key, { top3: ['', '', ''], todos: [], schedule: [], notes: '' });
+  const data = { ...raw, schedule: Array.isArray(raw.schedule) ? raw.schedule : [] };
+
+  // Top 3
+  const top3Box = document.getElementById('dailyTop3');
+  top3Box.innerHTML = '';
+  data.top3.forEach((val, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'flex items-center gap-3';
+    wrap.innerHTML = `<span class="w-6 h-6 rounded-full bg-sky text-navy-dark text-xs font-bold flex items-center justify-center shrink-0">${i+1}</span>
+      <input type="text" value="${escapeHtml(val)}" placeholder="Prioritas #${i+1}" class="flex-1 bg-cream-2 rounded-xl px-4 py-2 text-sm">`;
+    const input = wrap.querySelector('input');
+    input.addEventListener('input', debounce(async () => {
+      data.top3[i] = input.value;
+      await saveKey(key, data);
+    }, 500));
+    top3Box.appendChild(wrap);
+  });
+
+  // Todos
+  renderTodoList('dailyTodoList', data.todos, async (todos) => { data.todos = todos; await saveKey(key, data); });
+
+  // Schedule (dynamic, editable)
+  renderSchedule(data, key);
+
+  // Notes
+  const notesEl = document.getElementById('dailyNotes');
+  notesEl.value = data.notes || '';
+  notesEl.oninput = debounce(async () => { data.notes = notesEl.value; await saveKey(key, data); }, 500);
+
+  // Todo add
+  const addBtn = document.getElementById('dailyTodoAdd');
+  const addInput = document.getElementById('dailyTodoInput');
+  addBtn.onclick = async () => {
+    if (!addInput.value.trim()) return;
+    data.todos.push({ id: uid(), text: addInput.value.trim(), done: false });
+    addInput.value = '';
+    await saveKey(key, data);
+    renderTodoList('dailyTodoList', data.todos, async (todos) => { data.todos = todos; await saveKey(key, data); });
+  };
+  addInput.onkeydown = (e) => { if (e.key === 'Enter') addBtn.click(); };
+
+  // Schedule add
+  document.getElementById('schedAdd').onclick = async () => {
+    const timeEl = document.getElementById('schedTimeInput');
+    const textEl = document.getElementById('schedTextInput');
+    if (!textEl.value.trim()) return;
+    data.schedule.push({ id: uid(), time: timeEl.value || '00:00', text: textEl.value.trim() });
+    textEl.value = '';
+    await saveKey(key, data);
+    renderSchedule(data, key);
+  };
+}
+
+function renderSchedule(data, key) {
+  const box = document.getElementById('dailySchedule');
+  box.innerHTML = '';
+  const sorted = [...data.schedule].sort((a, b) => a.time.localeCompare(b.time));
+  if (sorted.length === 0) {
+    box.innerHTML = '<p class="text-sm text-muted italic">Belum ada kegiatan terjadwal.</p>';
+    return;
+  }
+  sorted.forEach(entry => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-3 group';
+    row.innerHTML = `
+      <input type="time" value="${entry.time}" class="bg-cream-2 rounded-lg px-2 py-1.5 text-sm w-28 shrink-0">
+      <input type="text" value="${escapeHtml(entry.text)}" placeholder="Kegiatan…" class="flex-1 bg-cream-2 rounded-lg px-3 py-1.5 text-sm">
+      <button class="icon-btn opacity-0 group-hover:opacity-100 p-1 shrink-0">
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none"><path d="M3 4H12M6 4V2.8C6 2.4 6.3 2 6.7 2H8.3C8.7 2 9 2.4 9 2.8V4M5 4V12C5 12.5 5.5 13 6 13H9C9.5 13 10 12.5 10 12V4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </button>`;
+    const timeInput = row.querySelector('input[type="time"]');
+    const textInput = row.querySelector('input[type="text"]');
+    timeInput.addEventListener('change', debounce(async () => {
+      entry.time = timeInput.value;
+      await saveKey(key, data);
+      renderSchedule(data, key);
+    }, 300));
+    textInput.addEventListener('input', debounce(async () => {
+      entry.text = textInput.value;
+      await saveKey(key, data);
+    }, 500));
+    row.querySelector('button').onclick = async () => {
+      data.schedule = data.schedule.filter(e => e.id !== entry.id);
+      await saveKey(key, data);
+      renderSchedule(data, key);
+    };
+    box.appendChild(row);
+  });
+}
+
+function renderTodoList(containerId, todos, onChange) {
+  const box = document.getElementById(containerId);
+  box.innerHTML = '';
+  if (todos.length === 0) {
+    box.innerHTML = '<p class="text-sm text-muted italic">Belum ada tugas.</p>';
+    return;
+  }
+  todos.forEach(todo => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-3 group';
+    row.innerHTML = `
+      <input type="checkbox" class="todo-check" ${todo.done ? 'checked' : ''}>
+      <span class="flex-1 text-sm ${todo.done ? 'line-through text-muted' : ''}">${escapeHtml(todo.text)}</span>
+      <button class="icon-btn opacity-0 group-hover:opacity-100 p-1">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M3 4H12M6 4V2.8C6 2.4 6.3 2 6.7 2H8.3C8.7 2 9 2.4 9 2.8V4M5 4V12C5 12.5 5.5 13 6 13H9C9.5 13 10 12.5 10 12V4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </button>`;
+    row.querySelector('.todo-check').onchange = (e) => {
+      todo.done = e.target.checked;
+      onChange(todos);
+      row.querySelector('span').classList.toggle('line-through', todo.done);
+      row.querySelector('span').classList.toggle('text-muted', todo.done);
+    };
+    row.querySelector('button').onclick = () => {
+      const idx = todos.findIndex(t => t.id === todo.id);
+      todos.splice(idx, 1);
+      onChange(todos);
+      renderTodoList(containerId, todos, onChange);
+    };
+    box.appendChild(row);
+  });
+}
+
+document.getElementById('dayPrev').onclick = () => { currentDay.setDate(currentDay.getDate() - 1); renderDaily(); };
+document.getElementById('dayNext').onclick = () => { currentDay.setDate(currentDay.getDate() + 1); renderDaily(); };
+document.getElementById('dayToday').onclick = () => { currentDay = new Date(); renderDaily(); };
+document.getElementById('dayPicker').onchange = (e) => { currentDay = parseDateInput(e.target.value); renderDaily(); };
+
+/* ===================== MINGGUAN ===================== */
+let currentWeekStart = mondayOf(new Date());
+async function renderWeekly() {
+  const wKey = isoWeekKey(currentWeekStart);
+  const key = 'weekly:' + wKey;
+  const end = new Date(currentWeekStart); end.setDate(end.getDate() + 6);
+  document.getElementById('weekLabel').textContent =
+    `${currentWeekStart.getDate()} ${BULAN[currentWeekStart.getMonth()]} – ${end.getDate()} ${BULAN[end.getMonth()]} (${wKey})`;
+  document.getElementById('weekPicker').value = fmtDate(currentWeekStart);
+
+  const data = await loadKey(key, { top3: ['', '', ''], focus: '', todos: [], notes: '' });
+
+  const top3Box = document.getElementById('weeklyTop3');
+  top3Box.innerHTML = '';
+  data.top3.forEach((val, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'flex items-center gap-3';
+    wrap.innerHTML = `<span class="w-6 h-6 rounded-full bg-sky text-navy-dark text-xs font-bold flex items-center justify-center shrink-0">${i+1}</span>
+      <input type="text" value="${escapeHtml(val)}" placeholder="Prioritas #${i+1}" class="flex-1 bg-cream-2 rounded-xl px-4 py-2 text-sm">`;
+    const input = wrap.querySelector('input');
+    input.addEventListener('input', debounce(async () => { data.top3[i] = input.value; await saveKey(key, data); }, 500));
+    top3Box.appendChild(wrap);
+  });
+
+  const focusEl = document.getElementById('weeklyFocus');
+  focusEl.value = data.focus || '';
+  focusEl.oninput = debounce(async () => { data.focus = focusEl.value; await saveKey(key, data); }, 500);
+
+  renderTodoList('weeklyTodoList', data.todos, async (todos) => { data.todos = todos; await saveKey(key, data); });
+
+  const notesEl = document.getElementById('weeklyNotes');
+  notesEl.value = data.notes || '';
+  notesEl.oninput = debounce(async () => { data.notes = notesEl.value; await saveKey(key, data); }, 500);
+
+  const addBtn = document.getElementById('weeklyTodoAdd');
+  const addInput = document.getElementById('weeklyTodoInput');
+  addBtn.onclick = async () => {
+    if (!addInput.value.trim()) return;
+    data.todos.push({ id: uid(), text: addInput.value.trim(), done: false });
+    addInput.value = '';
+    await saveKey(key, data);
+    renderTodoList('weeklyTodoList', data.todos, async (todos) => { data.todos = todos; await saveKey(key, data); });
+  };
+  addInput.onkeydown = (e) => { if (e.key === 'Enter') addBtn.click(); };
+}
+document.getElementById('weekPrev').onclick = () => { currentWeekStart.setDate(currentWeekStart.getDate() - 7); renderWeekly(); };
+document.getElementById('weekNext').onclick = () => { currentWeekStart.setDate(currentWeekStart.getDate() + 7); renderWeekly(); };
+document.getElementById('weekToday').onclick = () => { currentWeekStart = mondayOf(new Date()); renderWeekly(); };
+document.getElementById('weekPicker').onchange = (e) => { currentWeekStart = mondayOf(parseDateInput(e.target.value)); renderWeekly(); };
+
+/* ===================== BULANAN ===================== */
+let currentMonth = new Date().getMonth();
+let currentMonthYear = new Date().getFullYear();
+function monthKey(y, m) { return `monthly:${y}-${String(m+1).padStart(2,'0')}`; }
+let currentMonthData = null;
+
+async function renderMonthly() {
+  document.getElementById('monthLabel').textContent = `${BULAN[currentMonth]} ${currentMonthYear}`;
+  document.getElementById('monthPicker').value = `${currentMonthYear}-${String(currentMonth+1).padStart(2,'0')}`;
+  const key = monthKey(currentMonthYear, currentMonth);
+  const data = await loadKey(key, { income: 0, categories: [], notes: '' });
+  currentMonthData = data;
+
+  const incomeEl = document.getElementById('monthIncome');
+  incomeEl.value = data.income || '';
+  incomeEl.oninput = debounce(async () => {
+    data.income = Number(incomeEl.value) || 0;
+    await saveKey(key, data);
+    updateMonthSummary(data);
+  }, 500);
+
+  renderCategoryList(data, key);
+  updateMonthSummary(data);
+  drawDonut(data.categories);
+
+  const notesEl = document.getElementById('monthNotes');
+  notesEl.value = data.notes || '';
+  notesEl.oninput = debounce(async () => { data.notes = notesEl.value; await saveKey(key, data); }, 500);
+
+  document.getElementById('catAdd').onclick = async () => {
+    const nameEl = document.getElementById('catName');
+    const amtEl = document.getElementById('catAmount');
+    if (!nameEl.value.trim()) return;
+    data.categories.push({ id: uid(), name: nameEl.value.trim(), amount: Number(amtEl.value) || 0 });
+    nameEl.value = ''; amtEl.value = '';
+    await saveKey(key, data);
+    renderCategoryList(data, key);
+    updateMonthSummary(data);
+    drawDonut(data.categories);
+  };
+}
+
+function renderCategoryList(data, key) {
+  const box = document.getElementById('catList');
+  box.innerHTML = '';
+  if (data.categories.length === 0) {
+    box.innerHTML = '<p class="text-sm text-muted italic">Belum ada kategori.</p>';
+    return;
+  }
+  const palette = ['#274B6D', '#8FB4D1', '#DDEAF5', '#C9927B', '#69768A', '#4C7096'];
+  data.categories.forEach((cat, i) => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-3 group';
+    row.innerHTML = `
+      <span class="w-3 h-3 rounded-full shrink-0" style="background:${palette[i % palette.length]}"></span>
+      <span class="flex-1 text-sm">${escapeHtml(cat.name)}</span>
+      <span class="text-sm font-medium text-navy-dark">${rupiah(cat.amount)}</span>
+      <button class="icon-btn opacity-0 group-hover:opacity-100 p-1">
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none"><path d="M3 4H12M6 4V2.8C6 2.4 6.3 2 6.7 2H8.3C8.7 2 9 2.4 9 2.8V4M5 4V12C5 12.5 5.5 13 6 13H9C9.5 13 10 12.5 10 12V4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </button>`;
+    row.querySelector('button').onclick = async () => {
+      data.categories.splice(i, 1);
+      await saveKey(key, data);
+      renderCategoryList(data, key);
+      updateMonthSummary(data);
+      drawDonut(data.categories);
+    };
+    box.appendChild(row);
+  });
+}
+
+function updateMonthSummary(data) {
+  const totalExpense = data.categories.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  document.getElementById('monthExpenseTotal').textContent = rupiah(totalExpense);
+  document.getElementById('monthRemaining').textContent = rupiah((Number(data.income) || 0) - totalExpense);
+}
+
+function drawDonut(categories) {
+  const canvas = document.getElementById('donutChart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const total = categories.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const emptyMsg = document.getElementById('donutEmpty');
+  if (total <= 0) { emptyMsg.style.display = 'block'; return; }
+  emptyMsg.style.display = 'none';
+
+  const palette = ['#274B6D', '#8FB4D1', '#DDEAF5', '#C9927B', '#69768A', '#4C7096'];
+  const cx = 100, cy = 100, rOuter = 90, rInner = 55;
+  let start = -Math.PI / 2;
+  categories.forEach((cat, i) => {
+    const slice = (Number(cat.amount) || 0) / total * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, rOuter, start, start + slice);
+    ctx.closePath();
+    ctx.fillStyle = palette[i % palette.length];
+    ctx.fill();
+    start += slice;
+  });
+  ctx.beginPath();
+  ctx.arc(cx, cy, rInner, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+}
+
+document.getElementById('monthPrev').onclick = () => {
+  currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentMonthYear--; }
+  renderMonthly();
+};
+document.getElementById('monthNext').onclick = () => {
+  currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentMonthYear++; }
+  renderMonthly();
+};
+document.getElementById('monthPicker').onchange = (e) => {
+  const [y, m] = e.target.value.split('-').map(Number);
+  currentMonthYear = y; currentMonth = m - 1;
+  renderMonthly();
+};
+
+/* ---- Unduh Excel (rekap bulanan) ---- */
+document.getElementById('downloadExcel').onclick = () => {
+  const data = currentMonthData || { income: 0, categories: [], notes: '' };
+  const totalExpense = data.categories.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const sisa = (Number(data.income) || 0) - totalExpense;
+
+  const rows = [
+    ['Rekap Bulanan TataHari'],
+    [`Bulan: ${BULAN[currentMonth]} ${currentMonthYear}`],
+    [],
+    ['Pemasukan', Number(data.income) || 0],
+    [],
+    ['Kategori', 'Jumlah (Rp)'],
+    ...data.categories.map(c => [c.name, Number(c.amount) || 0]),
+    [],
+    ['Total Pengeluaran', totalExpense],
+    ['Sisa / Tabungan', sisa],
+    [],
+    ['Catatan', data.notes || '-'],
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 26 }, { wch: 18 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Rekap Bulanan');
+  XLSX.writeFile(wb, `Rekap-TataHari-${BULAN[currentMonth]}-${currentMonthYear}.xlsx`);
+};
+
+/* ===================== TAHUNAN ===================== */
+let currentYear = new Date().getFullYear();
+async function renderYearly() {
+  document.getElementById('yearLabel').textContent = String(currentYear);
+  document.getElementById('yearPicker').value = currentYear;
+  const yKey = 'yearly:' + currentYear;
+  const meta = await loadKey(yKey, { eval: '', target: '' });
+
+  const evalEl = document.getElementById('yearEval');
+  evalEl.value = meta.eval || '';
+  evalEl.oninput = debounce(async () => { meta.eval = evalEl.value; await saveKey(yKey, meta); }, 500);
+
+  const targetEl = document.getElementById('yearTarget');
+  targetEl.value = meta.target || '';
+  targetEl.oninput = debounce(async () => { meta.target = targetEl.value; await saveKey(yKey, meta); }, 500);
+
+  const monthsData = [];
+  let totalIncome = 0, totalExpense = 0;
+  for (let m = 0; m < 12; m++) {
+    const mk = monthKey(currentYear, m);
+    const md = await loadKey(mk, { income: 0, categories: [] });
+    const exp = (md.categories || []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
+    monthsData.push({ income: Number(md.income) || 0, expense: exp });
+    totalIncome += Number(md.income) || 0;
+    totalExpense += exp;
+  }
+  document.getElementById('yearIncomeTotal').textContent = rupiah(totalIncome);
+  document.getElementById('yearExpenseTotal').textContent = rupiah(totalExpense);
+  document.getElementById('yearSavingTotal').textContent = rupiah(totalIncome - totalExpense);
+
+  drawTrend(monthsData);
+}
+
+function drawTrend(monthsData) {
+  const canvas = document.getElementById('trendChart');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const max = Math.max(1, ...monthsData.map(m => Math.max(m.income, m.expense)));
+  const padding = 30;
+  const chartH = h - padding * 2;
+  const groupW = (w - padding * 2) / 12;
+
+  ctx.strokeStyle = '#E4EEF5';
+  ctx.beginPath();
+  ctx.moveTo(padding, h - padding);
+  ctx.lineTo(w - padding, h - padding);
+  ctx.stroke();
+
+  monthsData.forEach((m, i) => {
+    const x = padding + i * groupW;
+    const incomeH = (m.income / max) * chartH;
+    const expenseH = (m.expense / max) * chartH;
+    const barW = groupW * 0.32;
+
+    ctx.fillStyle = '#8FB4D1';
+    ctx.fillRect(x + groupW*0.08, h - padding - incomeH, barW, incomeH);
+
+    ctx.fillStyle = '#274B6D';
+    ctx.fillRect(x + groupW*0.08 + barW + 3, h - padding - expenseH, barW, expenseH);
+
+    ctx.fillStyle = '#69768A';
+    ctx.font = '10px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText(BULAN[i].slice(0,3), x + groupW/2, h - padding + 14);
+  });
+}
+
+document.getElementById('yearPrev').onclick = () => { currentYear--; renderYearly(); };
+document.getElementById('yearNext').onclick = () => { currentYear++; renderYearly(); };
+document.getElementById('yearPicker').onchange = (e) => {
+  const y = Number(e.target.value);
+  if (y >= 2000 && y <= 2100) { currentYear = y; renderYearly(); }
+};
+
+/* ===================== KALENDER ===================== */
+let currentCalMonth = new Date().getMonth();
+let currentCalYear = new Date().getFullYear();
+let selectedCalDate = fmtDate(new Date());
+let selectedCalColor = '#274B6D';
+
+function calKey(y, m) { return `calendar:${y}-${String(m+1).padStart(2,'0')}`; }
+
+async function renderCalendar() {
+  document.getElementById('calLabel').textContent = `${BULAN[currentCalMonth]} ${currentCalYear}`;
+  document.getElementById('calPicker').value = `${currentCalYear}-${String(currentCalMonth+1).padStart(2,'0')}`;
+
+  const key = calKey(currentCalYear, currentCalMonth);
+  const marks = await loadKey(key, []);
+
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+
+  const firstOfMonth = new Date(currentCalYear, currentCalMonth, 1);
+  let offset = firstOfMonth.getDay() - 1; // Monday = 0
+  if (offset < 0) offset = 6;
+  const daysInMonth = new Date(currentCalYear, currentCalMonth + 1, 0).getDate();
+  const todayStr = fmtDate(new Date());
+
+  for (let i = 0; i < offset; i++) {
+    const blank = document.createElement('div');
+    grid.appendChild(blank);
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${currentCalYear}-${String(currentCalMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dayMarks = marks.filter(m => m.date === dateStr);
+    const cell = document.createElement('button');
+    const isToday = dateStr === todayStr;
+    const isSelected = dateStr === selectedCalDate;
+    cell.className = `relative aspect-square rounded-xl flex flex-col items-center justify-center text-sm gap-1 transition-colors
+      ${isSelected ? 'bg-navy text-cream' : isToday ? 'bg-sky text-navy-dark font-semibold' : 'bg-cream-2 hover:bg-sky/60 text-charcoal'}`;
+    cell.innerHTML = `<span>${day}</span>
+      <span class="flex gap-0.5">${dayMarks.slice(0,3).map(m => `<span class="w-1.5 h-1.5 rounded-full" style="background:${isSelected ? '#FAF8F3' : m.color}"></span>`).join('')}</span>`;
+    cell.onclick = () => { selectedCalDate = dateStr; renderCalendar(); };
+    grid.appendChild(cell);
+  }
+
+  // color swatch selection state
+  document.querySelectorAll('.cal-color-swatch').forEach(sw => {
+    sw.classList.toggle('ring-2', sw.dataset.color === selectedCalColor);
+    sw.classList.toggle('ring-navy-dark', sw.dataset.color === selectedCalColor);
+  });
+
+  // selected date detail
+  const [sy, sm, sd] = selectedCalDate.split('-').map(Number);
+  const selDateObj = new Date(sy, sm - 1, sd);
+  document.getElementById('calSelectedLabel').textContent =
+    `${HARI[selDateObj.getDay()]}, ${sd} ${BULAN[sm-1]} ${sy}`;
+
+  const marksForSelected = marks.filter(m => m.date === selectedCalDate);
+  const markListBox = document.getElementById('calMarkList');
+  markListBox.innerHTML = '';
+  if (marksForSelected.length === 0) {
+    markListBox.innerHTML = '<p class="text-sm text-muted italic">Belum ada penanda di tanggal ini.</p>';
+  } else {
+    marksForSelected.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-3 group';
+      row.innerHTML = `<span class="w-3 h-3 rounded-full shrink-0" style="background:${m.color}"></span>
+        <span class="flex-1 text-sm">${escapeHtml(m.label)}</span>
+        <button class="icon-btn opacity-0 group-hover:opacity-100 p-1">
+          <svg width="14" height="14" viewBox="0 0 15 15" fill="none"><path d="M3 4H12M6 4V2.8C6 2.4 6.3 2 6.7 2H8.3C8.7 2 9 2.4 9 2.8V4M5 4V12C5 12.5 5.5 13 6 13H9C9.5 13 10 12.5 10 12V4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        </button>`;
+      row.querySelector('button').onclick = async () => {
+        const idx = marks.findIndex(x => x.id === m.id);
+        marks.splice(idx, 1);
+        await saveKey(key, marks);
+        renderCalendar();
+      };
+      markListBox.appendChild(row);
+    });
+  }
+
+  // full month list, sorted by date
+  const monthListBox = document.getElementById('calMonthList');
+  monthListBox.innerHTML = '';
+  const sorted = [...marks].sort((a, b) => a.date.localeCompare(b.date));
+  if (sorted.length === 0) {
+    monthListBox.innerHTML = '<p class="text-sm text-muted italic">Belum ada hari penting bulan ini.</p>';
+  } else {
+    sorted.forEach(m => {
+      const [my, mm, md] = m.date.split('-').map(Number);
+      const row = document.createElement('button');
+      row.className = 'w-full flex items-center gap-3 text-left group hover:bg-cream-2 rounded-lg px-2 py-1.5 -mx-2';
+      row.innerHTML = `<span class="w-3 h-3 rounded-full shrink-0" style="background:${m.color}"></span>
+        <span class="text-sm font-medium text-navy-dark w-10 shrink-0">${md}/${mm}</span>
+        <span class="flex-1 text-sm">${escapeHtml(m.label)}</span>`;
+      row.onclick = () => { selectedCalDate = m.date; renderCalendar(); };
+      monthListBox.appendChild(row);
+    });
+  }
+
+  document.querySelectorAll('.cal-color-swatch').forEach(sw => {
+    sw.onclick = () => { selectedCalColor = sw.dataset.color; renderCalendar(); };
+  });
+
+  document.getElementById('calAdd').onclick = async () => {
+    const input = document.getElementById('calLabelInput');
+    if (!input.value.trim()) return;
+    marks.push({ id: uid(), date: selectedCalDate, label: input.value.trim(), color: selectedCalColor });
+    input.value = '';
+    await saveKey(key, marks);
+    renderCalendar();
+  };
+}
+
+document.getElementById('calPrev').onclick = () => {
+  currentCalMonth--; if (currentCalMonth < 0) { currentCalMonth = 11; currentCalYear--; }
+  renderCalendar();
+};
+document.getElementById('calNext').onclick = () => {
+  currentCalMonth++; if (currentCalMonth > 11) { currentCalMonth = 0; currentCalYear++; }
+  renderCalendar();
+};
+document.getElementById('calPicker').onchange = (e) => {
+  const [y, m] = e.target.value.split('-').map(Number);
+  currentCalYear = y; currentCalMonth = m - 1;
+  renderCalendar();
+};
+
+/* ===================== INIT ===================== */
+(async function init() {
+  await renderDaily();
+  await renderWeekly();
+  await renderMonthly();
+  await renderYearly();
+  await renderCalendar();
+})();
+</script>
+
+</body>
+</html>
